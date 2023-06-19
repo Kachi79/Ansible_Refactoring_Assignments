@@ -104,3 +104,130 @@ ansible-playbook -i inventory/dev.yml playbooks/site.yaml
 ![](./img/8.reconfigured.png)
 #
 
+## CONFIGURE UAT WEBSERVERS WITH A ROLE ‘WEBSERVER’
+## Step 3 – Configure UAT Webservers with a role ‘Webserver’
+
+- Launch 2 fresh EC2 instances using RHEL 8 image, we will use them as our uat servers, so give them names accordingly – Web1-UAT and Web2-UAT.
+![](./img/9.newservers.png)
+
+- Create a role using an Ansible utility called ansible-galaxy inside ansible-config-mgt/roles directory (you need to create roles directory upfront)
+```
+mkdir roles
+cd roles
+ansible-galaxy init webserver
+```
+- removing unnecessary directories and files, the roles structure should look like this
+
+```
+└── webserver
+    ├── README.md
+    ├── defaults
+    │   └── main.yml
+    ├── handlers
+    │   └── main.yml
+    ├── meta
+    │   └── main.yml
+    ├── tasks
+    │   └── main.yml
+    └── templates
+```
+- Update your inventory ansible-config-mgt/inventory/uat.yml file with IP addresses of your 2 UAT Web servers
+```
+[uat-webservers]
+<Web1-UAT-Server-Private-IP-Address> ansible_ssh_user='ec2-user' 
+
+<Web2-UAT-Server-Private-IP-Address> ansible_ssh_user='ec2-user' 
+```
+
+- In /etc/ansible/ansible.cfg file uncomment roles_path string and provide a full path to your roles directory `roles_path    = /home/ubuntu/ansible-config-mgt/roles`, so Ansible could know where to find configured roles.
+  
+![](./img/10.roles.png)
+![](./img/12.roles.png)
+
+```
+Install and configure Apache (httpd service)
+Clone Tooling website from GitHub https://github.com/<your-name>/tooling.git.
+Ensure the tooling website code is deployed to /var/www/html on each of 2 UAT Web servers.
+Make sure httpd service is started
+```
+
+Add the following to the main.yml of the webserver role
+```
+---
+- name: install apache
+  become: true
+  ansible.builtin.yum:
+    name: "httpd"
+    state: present
+
+- name: install git
+  become: true
+  ansible.builtin.yum:
+    name: "git"
+    state: present
+
+- name: clone a repo
+  become: true
+  ansible.builtin.git:
+    repo: https://github.com/<your-name>/tooling.git
+    dest: /var/www/html
+    force: yes
+
+- name: copy html content to one level up
+  become: true
+  command: cp -r /var/www/html/html/ /var/www/
+
+- name: Start service httpd, if not started
+  become: true
+  ansible.builtin.service:
+    name: httpd
+    state: started
+
+- name: recursively remove /var/www/html/html/ directory
+  become: true
+  ansible.builtin.file:
+    path: /var/www/html/html
+    state: absent
+```
+#
+
+### REFERENCE WEBSERVER ROLE
+### Step 4 – Reference ‘Webserver’ role
+- In the static-assignments folder, we create a new assignment for uat-webservers `uat-webservers.yml`. 
+  
+Then we reference the role
+```
+---
+- hosts: uat-webservers
+  roles:
+     - webserver
+```
+
+Since the entry point to our ansible configuration is the `site.yml` file. Therefore, you need to refer your `uat-webservers.yml` role inside `site.yml`.
+
+So, we should have this in site.yml
+
+```
+---
+- hosts: all
+- import_playbook: ../static-assignments/common.yml
+
+- hosts: uat-webservers
+- import_playbook: ../static-assignments/uat-webservers.yml
+```
+![](./img/13.configuringwebservers.png)
+![](./img/14.completed.png)
+
+- Commit your changes, create a Pull Request and merge them to main branch, make sure webhook triggered two consequent Jenkins jobs, they ran successfully and copied all the files to your Jenkins-Ansible server into `/home/ubuntu/ansible-config-mgt/` directory.
+
+Now run the playbook against your uat inventory and see what happens:
+
+```
+sudo ansible-playbook -i /home/ubuntu/ansible-config-mgt/inventory/uat.yml /home/ubuntu/ansible-config-mgt/playbooks/site.yaml
+```
+Test the webserver configurations on the browser
+![](./img/15.success.png)
+
+#
+# Code containing all configuration can be found in the [ansible-config-mgt repository](https://github.com/Micah-Shallom/ansible-config-mgt)
+#
