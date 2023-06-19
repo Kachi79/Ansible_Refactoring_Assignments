@@ -44,3 +44,63 @@ If both Jenkins jobs have completed one after another – you shall see your fil
 Now your Jenkins pipeline is more neat and clean.
 ![](./img/5.triggeredansible.png)
 #
+
+## Step 2 – Refactor Ansible code by importing other playbooks into site.yml
+#
+
+In [Project 11](https://github.com/Micah-Shallom/DevOps_Projects/tree/main/11.ANSIBLE%E2%80%93AUTOMATE_PROJECT_7_TO_10) , I wrote all tasks in a single playbook `common.yml`, now it is pretty simple set of instructions for only 2 types of OS, but imagine you have many more tasks and you need to apply this playbook to other servers with different requirements. In this case, you will have to read through the whole playbook to check if all tasks written there are applicable and is there anything that you need to add for certain server/OS families. Very fast it will become a tedious exercise and your playbook will become messy with many commented parts. Your DevOps colleagues will not appreciate such organization of your codes and it will be difficult for them to use your playbook.
+
+- In playbooks folder, create a new file and name it `site.yml` – This file will now be considered as an entry point into the entire infrastructure configuration.
+
+- Create a new folder in root of the repository and name it static-assignments. The static-assignments folder is where all other children playbooks will be stored
+- Move common.yml file into the newly created static-assignments folder.
+
+- Inside site.yml file, import common.yml playbook. 
+
+![](./img/6.deleteinstall.png)
+
+- Run ansible-playbook command against the dev environment
+- create another playbook under static-assignments and name it common-del.yml. In this playbook, configure deletion of wireshark utility.
+```
+---
+- name: update web, nfs and db servers
+  hosts: webservers, nfs, db
+  remote_user: ec2-user
+  become: yes
+  become_user: root
+  tasks:
+  - name: delete wireshark
+    yum:
+      name: wireshark
+      state: removed
+
+- name: update LB server
+  hosts: lb
+  remote_user: ubuntu
+  become: yes
+  become_user: root
+  tasks:
+  - name: delete wireshark
+    apt:
+      name: wireshark-qt
+      state: absent
+      autoremove: yes
+      purge: yes
+      autoclean: yes
+```
+- We update site.yml with - import_playbook: ../static-assignments/common-del.yml instead of common.yml and run it against dev servers
+
+```
+cd /home/ubuntu/ansible-config-mgt/
+
+
+ansible-playbook -i inventory/dev.yml playbooks/site.yaml
+```
+
+- Make sure that wireshark is deleted on all the servers by running wireshark --version
+  
+![](./img/7.prerun.png)
+
+![](./img/8.reconfigured.png)
+#
+
